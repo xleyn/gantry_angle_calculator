@@ -1,0 +1,5 @@
+{
+    "image_input_dir": "runtime_io/image_input",
+    "figures_dir": "runtime_io/results/figures",
+    "excel_log": "runtime_io/results/slice_thickness_log.xlsx"
+}
