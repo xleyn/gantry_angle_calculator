@@ -112,10 +112,7 @@ class Image:
     def analyse_image(self):
         print(f"Analysing image: {self.path.name}")
         self.cont_inset = self.get_contour_inset()
-        signal = self.get_signal()
-        cpm = ConnectedPeaksModel(signal)
-        self.signal_fitted = cpm.run()
-        self.get_crossing_indices()
+        self.line_end_points = self.get_line_end_points()
         pass
 
     def get_contour_inset(self):
@@ -127,26 +124,9 @@ class Image:
         pco.AddPath(cont, pc.JT_ROUND, pc.ET_CLOSEDPOLYGON)
         abs_shift = min(image.shape) // 10
         cont_inset = np.array(pco.Execute(-abs_shift), dtype=np.int64).reshape(-1, 1, 2)
-        cont_inset = self.resample_with_equidistance(cont_inset, num_points=1000)
+        cont_inset = self.resample_with_equidistance(cont_inset, num_points=2000)
 
         return cont_inset
-
-    def get_signal(self) -> XY:
-        # Get signal from inset contour
-        signal = self.image["GRAY"].astype(float)[
-            self.cont_inset[:, 0, 1], self.cont_inset[:, 0, 0]
-        ]
-
-        # Invert and roll signal to global minimum
-        k = len(signal) // 30 + (len(signal) // 30 + 1) % 2
-        signal = medfilt(signal, k)
-        signal *= -1
-        signal -= np.min(signal)
-        roll = np.argmin(signal)
-        signal = np.roll(signal, -roll)
-        signal = XY(np.arange(len(signal)), signal)
-
-        return signal
 
     @staticmethod
     def resample_with_equidistance(contour, num_points: int):
@@ -174,36 +154,27 @@ class Image:
         )
         return resampled
 
-    def get_crossing_indices(self):
-        peaks, pprops = find_peaks(self.fitted_signal.y, height=0)
-        troughs, tprops = find_peaks(
-            -self.fitted_signal.y, height=float(np.min(-self.fitted_signal.y))
-        )
+    def get_line_end_points(self):
+        self.signal, roll = self.get_signal()
+        cpm = ConnectedPeaksModel(self.signal)
+        crossing_idxs = cpm.get_crossing_indices()
+        unrolled_idxs = [(idx + roll) % len(self.cont_inset) for idx in crossing_idxs]
+        contour_pts = self.cont_inset[unrolled_idxs, :, :].reshape(-1, 2)
+        return contour_pts
 
-        peak_heights = pprops["peak_heights"]
-        trough_heights = -tprops["peak_heights"]
-        thresh_heights = [
-            th + (ph - th) / 2 for ph, th in zip(peak_heights, trough_heights)
+    def get_signal(self) -> XY:
+        # Get signal from inset contour
+        signal = self.image["GRAY"].astype(float)[
+            self.cont_inset[:, 0, 1], self.cont_inset[:, 0, 0]
         ]
 
-        thresh0 = (
-            self.fitted_signal.y[0] + (peak_heights[0] - self.fitted_signal.y[0]) / 2
-        )
-        thresh_neg1 = (
-            self.fitted_signal.y[-1] + (peak_heights[-1] - self.fitted_signal.y[-1]) / 2
-        )
-        thresh_heights = np.insert(thresh_heights, [0, -1], [thresh0, thresh_neg1])
+        # Invert and roll signal to global minimum
+        k = len(signal) // 30 + (len(signal) // 30 + 1) % 2
+        signal = medfilt(signal, k)
+        signal *= -1
+        signal -= np.min(signal)
+        roll = np.argmin(signal)
+        signal = np.roll(signal, -roll)
+        signal = XY(np.arange(len(signal)), signal)
 
-        interleaved = list(chain.from_iterable(zip(peaks, troughs)))
-        interleaved.append(peaks[-1])
-        interleaved = [(ij[0] - 2, ij[1] + 2) for ij in interleaved]
-        interleaved.append(len(self.fitted_signal.x) - 1)
-        interleaved.insert(0, 0)
-
-        slice_idxs = [
-            (interleaved[i], interleaved[i + 1]) for i in range(len(interleaved) - 1)
-        ]
-        crossing_idxs = [
-            np.interp(thresh, self.fitted_signal.y[i:j], self.fitted_signal.x[i:j])
-            for thresh, (i, j) in zip(thresh_heights, slice_idxs)
-        ]
+        return signal, roll

@@ -15,25 +15,16 @@ class ConnectedPeaksModel:
     """
 
     def __init__(self, signal: XY):
-        """Initialises ConnectedPeaksModel
-
-        Args:
-            signal (XY): Signal to fit the model to.
+        """Initialises ConnectPeaksModel.
+        Splits the signal into segments, fits sigmoids to half peaks, and blends them together
+        to create a continuous model of the connected peaks.
         """
         self.signal = signal
         self.model = None
 
-    def run(self) -> XY:
-        """Entry point for running the connected peaks model fitting.
-        Splits the signal into segments, fits sigmoids to half peaks, and blends them together
-        to create a continuous model of the connected peaks. XY profile of the fitted model is
-        returned for convenience.
+        self.segments_peaks = self.split_into_peaks(self.signal)
+        self.segments_half_peaks = self.split_into_half_peaks(self.segments_peaks)
 
-        Returns:
-            XY: Raw XY profile of the fitted model.
-        """
-        self.segments_peaks = self.split_into_peaks()
-        self.segments_half_peaks = self.split_into_half_peaks()
         self.sigmoids = [Sigmoid(seg.x, seg.y) for seg in self.segments_half_peaks]
         self.peaks = [
             SigmoidDerivedSignal(sig1, sig2)
@@ -42,9 +33,8 @@ class ConnectedPeaksModel:
         for peak in self.peaks:
             self.blend_in_peak(peak)
 
-        return self.model
-
-    def split_into_peaks(self) -> list[XY]:
+    @staticmethod
+    def split_into_peaks(signal) -> list[XY]:
         """Splits the signal into segments based on detected troughs, which are used to identify
         the boundaries of the peaks. The segments are returned as a list of XY objects.
 
@@ -52,29 +42,29 @@ class ConnectedPeaksModel:
             list[XY]: Returned segments of the original signal, each representing a peak.
         """
         troughs, _ = troughs, _ = find_peaks(
-            -self.signal.y,
-            height=float(np.min(-self.signal.y)),
-            prominence=float(np.ptp(self.signal.y) / 4),
-            distance=len(self.signal.y) // 30,
+            -signal.y,
+            height=float(np.min(-signal.y)),
+            prominence=float(np.ptp(signal.y) / 4),
+            distance=len(signal.y) // 30,
         )
-        split_indices = sorted([0, len(self.signal.y)] + troughs.tolist())
+        split_indices = sorted([0, len(signal.y)] + troughs.tolist())
         segments_peaks = [
-            self.signal[:, start:end]
-            for start, end in zip(split_indices, split_indices[1:])
+            signal[:, start:end] for start, end in zip(split_indices, split_indices[1:])
         ]
         return segments_peaks
 
-    def split_into_half_peaks(self) -> list[XY]:
+    @staticmethod
+    def split_into_half_peaks(segments_peaks) -> list[XY]:
         """Each segment is split into two "half-peaks", in preparation for individual
         sigmoid fitting.
 
         Returns:
             list[XY]: List of "half-peak" segments.
         """
-        split_indices = [seg.find_highest_peak()[0] for seg in self.segments_peaks]
+        split_indices = [seg.find_highest_peak()[0] for seg in segments_peaks]
         segments_half_peaks = [
             [seg[:, :idx], seg[:, idx:]]
-            for idx, seg in zip(split_indices, self.segments_peaks)
+            for idx, seg in zip(split_indices, segments_peaks)
         ]
         segments_half_peaks = list(itertools.chain(*segments_half_peaks))
         return segments_half_peaks
@@ -111,3 +101,23 @@ class ConnectedPeaksModel:
                 + blending_weight * peak_extrap.y,
             )
             self.model = SigmoidDerivedSignal(self.model.sig_L, peak.sig_R, new_model)
+
+    def get_crossing_indices(self):
+        segments_peaks = self.split_into_peaks(self.model)
+        segments_half_peaks = self.split_into_half_peaks(segments_peaks)
+
+        crossing_idxs = []
+        for seg in segments_half_peaks:
+            y_L, y_R = seg.y[0], seg.y[-1]
+            thresh = y_L + (y_R - y_L) / 2
+            if y_L > y_R:
+                idx = np.where(seg.y < thresh)[0][0]
+            else:
+                idx = np.where(seg.y > thresh)[0][0]
+
+            x1, x2 = seg.x[idx], seg.x[idx + 1]
+            y1, y2 = seg.y[idx], [idx + 1]
+            x_cross = x1 + (thresh - y1) * (x2 - x1) / (y2 - y1)
+            crossing_idxs.append(int(x_cross))
+
+        return crossing_idxs
