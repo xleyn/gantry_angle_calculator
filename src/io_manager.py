@@ -135,5 +135,5 @@ class IOManager:
             worksheet = writer.sheets.values().__iter__().__next__()
             worksheet.set_column(0, 0, 30)
             worksheet.set_column(1, 1, 20)
-            worksheet.set_column(2, 16, 10)
+            worksheet.set_column(2, 16, 15)
             worksheet.freeze_panes(1, 0)
