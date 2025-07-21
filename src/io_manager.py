@@ -100,3 +100,40 @@ class IOManager:
         df = pd.read_excel(cls.paths_from_proj_dir["excel_log"])
         analysed_images = df[df.columns[0]].to_list()
         return analysed_images
+
+    @classmethod
+    def update_log(cls, image: "Image"):
+        """Updates excel log with results from analysis of input image.
+
+        Args:
+            image (Image): Image to update log with results from.
+        """
+        df = pd.read_excel(cls.paths_from_proj_dir["excel_log"])
+
+        # get new row
+        new_row = [image.path.name, pd.Timestamp.now()] + [
+            image.paired_lines[corner]["intersection_angle"]
+            for corner in ["top_left", "top_right", "bottom_left", "bottom_right"]
+        ]
+
+        new_row_df = pd.DataFrame([dict(zip(df.columns, new_row))])
+
+        # contact new row to df or create new df if empty
+        if not (df.empty or df.isna().all().all()):
+            df = pd.concat(
+                [df.dropna(axis=0, how="all"), new_row_df], ignore_index=True, axis=0
+            )
+        else:
+            df = new_row_df
+
+        with pd.ExcelWriter(
+            cls.paths_from_proj_dir["excel_log"], engine="xlsxwriter"
+        ) as writer:
+            df.to_excel(writer, index=False)
+
+            workbook = writer.book
+            worksheet = writer.sheets.values().__iter__().__next__()
+            worksheet.set_column(0, 0, 30)
+            worksheet.set_column(1, 1, 20)
+            worksheet.set_column(2, 16, 10)
+            worksheet.freeze_panes(1, 0)

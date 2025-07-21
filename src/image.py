@@ -10,6 +10,7 @@ import pyclipper as pc
 
 from filters import bilateral_filter_1d
 from xy import XY
+from io_manager import IOManager
 
 
 class Image:
@@ -375,7 +376,9 @@ class Image:
                 angle_1, angle_2, intersection
             )
 
-            line_pair["intersection_angle"] = (angle_2 - angle_1) % (2 * np.pi)
+            line_pair["intersection_angle"] = np.round(
+                np.degrees((angle_2 - angle_1) % (2 * np.pi)), 2
+            )
 
             wedge = Wedge(
                 center=intersection,
@@ -383,7 +386,7 @@ class Image:
                 theta1=np.degrees(angle_1),
                 theta2=np.degrees(angle_2),
                 color=f"C{i}",
-                label=f"{np.degrees(line_pair['intersection_angle']):.2f}°",
+                label=f"{line_pair['intersection_angle']}°",
             )
             ax.add_patch(wedge)
 
@@ -397,7 +400,14 @@ class Image:
 
             ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1))
 
-        plt.show()
+        plt.savefig(
+            IOManager.paths_from_proj_dir["figures_dir"].joinpath(
+                f"{self.path.stem}_results.png"
+            ),
+            dpi=600,
+        )
+        plt.show(block=True)
+        plt.close()
 
     @staticmethod
     def _find_line_intersection(start_point_1, end_point_1, start_point_2, end_point_2):
