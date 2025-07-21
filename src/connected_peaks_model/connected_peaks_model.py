@@ -1,7 +1,7 @@
 import itertools
 
 import numpy as np
-from scipy.signal import find_peaks
+from scipy.signal import find_peaks, peak_prominences, peak_widths
 
 from connected_peaks_model.xy import XY
 from connected_peaks_model.sigmoid import Sigmoid
@@ -14,13 +14,14 @@ class ConnectedPeaksModel:
     too great for reliable use of traditional peak detection methods.
     """
 
-    def __init__(self, signal: XY):
+    def __init__(self, signal: XY, expected_peaks: int = None):
         """Initialises ConnectPeaksModel.
         Splits the signal into segments, fits sigmoids to half peaks, and blends them together
         to create a continuous model of the connected peaks.
         """
         self.signal = signal
         self.model = None
+        self.expected_peaks = expected_peaks
 
         self.segments_peaks = self.split_into_peaks(self.signal)
         self.segments_half_peaks = self.split_into_half_peaks(self.segments_peaks)
@@ -41,13 +42,39 @@ class ConnectedPeaksModel:
         Returns:
             list[XY]: Returned segments of the original signal, each representing a peak.
         """
-        troughs, _ = troughs, _ = find_peaks(
-            -signal.y,
-            height=float(np.min(-signal.y)),
-            prominence=float(np.ptp(signal.y) / 4),
-            distance=len(signal.y) // 30,
+
+        # get troughs from profile
+        neg_signal = -signal.y
+        troughs, _ = find_peaks(
+            neg_signal,
+            distance=len(neg_signal) // 30,
         )
-        split_indices = sorted([0, len(signal.y)] + troughs.tolist())
+        prominences, _, _ = peak_prominences(neg_signal, troughs)
+        normalised_prominences = [p / np.max(prominences) for p in prominences]
+
+        widths, _, _, _ = peak_widths(neg_signal, troughs, rel_height=0.5)
+        width_deviations = [abs(w - np.median(widths)) for w in widths]
+        normalised_width_deviations = [
+            w / np.max(width_deviations) for w in width_deviations
+        ]
+
+        def trough_score(trough, norm_prom, norm_width_dev):
+            weight_prom = 0.5
+            weight_width_dev = 0.5
+
+            return norm_prom * weight_prom + (1 - norm_width_dev) * weight_width_dev
+
+        scores = [
+            trough_score(trough, norm_prom, norm_width_dev)
+            for trough, norm_prom, norm_width_dev in zip(
+                troughs, normalised_prominences, normalised_width_deviations
+            )
+        ]
+
+        sorted_idxs = np.argsort(scores)[::-1]
+        top_five_troughs = troughs[sorted_idxs][:5]
+
+        split_indices = sorted([0, len(signal.y)] + top_five_troughs.tolist())
         segments_peaks = [
             signal[:, start:end] for start, end in zip(split_indices, split_indices[1:])
         ]

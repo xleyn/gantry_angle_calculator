@@ -20,7 +20,7 @@ class GantryAngleTask:
         try:
             print("Analysing images...")
             for image in self.images:
-                image.analyse_image()
+                image.analyse()
                 # IO.update_log(image)
             print("All images analysed! Quitting programme.")
             time.sleep(5)

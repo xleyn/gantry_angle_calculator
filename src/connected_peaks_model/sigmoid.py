@@ -17,11 +17,20 @@ class Sigmoid(XY):
         Returns:
             list[float]: List of best fit parameters for sigmoid fitting.
         """
-        p0 = self.get_initial_guesses()
+
+        p0, bounds = self.get_initial_guesses()
+
         with warnings.catch_warnings():
             warnings.simplefilter("ignore", category=RuntimeWarning)
             try:
-                popt, _ = curve_fit(self.functional_form, self.x, self.y, p0=p0)
+                popt, _ = curve_fit(
+                    self.functional_form,
+                    self.x,
+                    self.y,
+                    p0=p0,
+                    maxfev=4000,
+                    bounds=bounds,
+                )
             except RuntimeError:
                 print(
                     f"User warning: Runtime error in sigmoid fitting. Using initial guesses."
@@ -29,20 +38,57 @@ class Sigmoid(XY):
                 popt = p0
         return popt
 
-    def get_initial_guesses(self) -> list[float]:
+    def get_initial_guesses(self) -> tuple[list[float], tuple[list[float]]]:
         """Gets initial guesses for sigmoid fitting.
 
         Returns:
             list[float]: List of initial guesses for sigmoid fitting.
         """
+        bounds_lower, bounds_upper = self.get_bounds()
+
         A = np.ptp(self.y)
+        A = np.clip(A, bounds_lower[0], bounds_upper[0])
+
         b = np.min(self.y)
+        b = np.clip(b, bounds_lower[3], bounds_upper[3])
+
         abs_deriv = np.abs(np.diff(self.y) / np.diff(self.x))
         abs_grad_max = np.max(abs_deriv)
+
         k = np.sign(self.y[-1] - self.y[0]) * abs_grad_max * 0.5
+        k = np.clip(k, bounds_lower[1], bounds_upper[1])
+
         x0 = self.x[np.argmax(abs_deriv)]
+        x0 = np.clip(x0, bounds_lower[2], bounds_upper[2])
+
         p0 = [A, k, x0, b]
-        return p0
+
+        return p0, (bounds_lower, bounds_upper)
+
+    def get_bounds(self) -> tuple[list]:
+        y_max = np.max(self.y)
+        x_min = np.min(self.x)
+        x_max = np.max(self.x)
+        x_range = x_max - x_min
+
+        # derived
+        abs_k_lim = 1418 / (x_range + 1e-10)
+        upper_k = abs_k_lim
+        lower_k = -abs_k_lim
+
+        upper_x0 = x_max
+        lower_x0 = x_min
+
+        upper_A = y_max * 1.1
+        lower_A = 0
+
+        upper_b = y_max * 1.1
+        lower_b = -np.inf
+
+        bounds_lower = [lower_A, lower_k, lower_x0, lower_b]
+        bounds_upper = [upper_A, upper_k, upper_x0, upper_b]
+
+        return (bounds_lower, bounds_upper)
 
     @staticmethod
     def functional_form(
@@ -60,7 +106,8 @@ class Sigmoid(XY):
         Returns:
             list[float] | float: y-array or single y value for input x.
         """
-        exp_term = np.exp(-k * (x - x0))
+        exponent = np.clip(-k * (x - x0), -709, 709)
+        exp_term = np.exp(exponent)
         return A / (1 + exp_term) + b
 
     def evaluate(self, x: list) -> XY:
