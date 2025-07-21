@@ -2,8 +2,8 @@ import sys
 import traceback
 import time
 
-from io_manager import IOManager
-from image import Image
+from src.io_manager import IOManager
+from src.image import Image
 
 
 class GantryAngleTask:

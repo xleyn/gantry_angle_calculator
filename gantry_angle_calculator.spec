@@ -5,8 +5,8 @@ from pathlib import Path
 base_path = Path(".").resolve()
 
 a = Analysis(
-    [str(base_path / "src" / "main.py")],
-    pathex=[str(base_path)],
+    [str(base_path / "main.py")],
+    pathex=["src"],
     binaries=[],
     datas=[
         (str(base_path / "config"), "config/"),

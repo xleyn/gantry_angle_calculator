@@ -1,4 +1,4 @@
-from gantry_angle_task import GantryAngleTask
+from src.gantry_angle_task import GantryAngleTask
 
 
 if __name__ == "__main__":

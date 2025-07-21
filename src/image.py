@@ -8,9 +8,9 @@ import scipy.interpolate as interpolate
 from scipy.signal import medfilt, find_peaks
 import pyclipper as pc
 
-from filters import bilateral_filter_1d
-from xy import XY
-from io_manager import IOManager
+from src.filters import bilateral_filter_1d
+from src.xy import XY
+from src.io_manager import IOManager
 
 
 class Image:
