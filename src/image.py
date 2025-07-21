@@ -1,5 +1,4 @@
 from pathlib import Path
-from itertools import chain
 
 import numpy as np
 import matplotlib.pyplot as plt
@@ -10,8 +9,7 @@ from scipy.signal import medfilt, find_peaks
 import pyclipper as pc
 
 from filters import bilateral_filter_1d
-from connected_peaks_model.xy import XY
-from connected_peaks_model.connected_peaks_model import ConnectedPeaksModel
+from xy import XY
 
 
 class Image:
