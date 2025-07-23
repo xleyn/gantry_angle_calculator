@@ -597,7 +597,7 @@ class GantryAngleImage:
                     [line["start_point"][0], line["end_point"][0]],
                     [line["start_point"][1], line["end_point"][1]],
                     color="blue",
-                    alpha=0.15,
+                    alpha=0.3,
                 )
 
             ax.legend(loc="upper left", bbox_to_anchor=(1.02, 1))
