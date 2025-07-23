@@ -1,3 +1,9 @@
+# gantry_angle_calculator.spec
+#
+# Script defining compilation settings for pyinstaller build of gantry angle calculator project.
+#
+# Written by Nathan Crossley, 2025.
+
 # -*- mode: python ; coding: utf-8 -*-
 
 from pathlib import Path
